@@ -57,6 +57,7 @@
 #include "modals/ConnectionModal.h"
 #include "modals/UpdateNotice.h"
 #include "settings/SettingsScreen.h"
+#include "core/Design.h"
 #include "services/Services.h"
 #include "widgets/Popover.h"
 
@@ -84,6 +85,8 @@ public:
   // Design px the content column grows by beyond the core height (see the
   // header). The shell sets it from the window it has; 0 is the design.
   void setStretch(int px);
+  // Standalone canvas dimensions, before the shell's uniform transform.
+  void setCanvasSize(int width, int height);
   int stretch() const { return stretch_; }
 
   Services& services() { return services_; }
@@ -177,6 +180,7 @@ private:
   PointerTracker pointerTracker_;
   bool hintsVisible_ = true;
   int stretch_ = 0;
+  int canvasWidth_ = design::kWidth;
 
   BannerPhase bannerPhase_ = BannerPhase::hidden;
   DelayedCall bannerWait_;

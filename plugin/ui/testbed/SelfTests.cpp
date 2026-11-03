@@ -2856,6 +2856,24 @@ struct WindowFitTests : juce::UnitTest {
     expectEquals(check({0, 100, 1024, 500}, /*top=*/true).getBottom(), 600);        // a top drag keeps the bottom
     expectEquals(check({0, 100, 1024, 500}, /*top=*/true).getHeight(), kMinH);
 
+    beginTest("standalone accepts the WM viewport instead of clamping its child to 2048px");
+    design::StandaloneConstrainer standalone;
+    for (const auto box : {juce::Rectangle<int>(0, 0, 3840, 2090),
+                           {0, 0, 3440, 1440},
+                           {0, 0, 1200, 1920},
+                           {0, 0, 800, 500}}) {
+      auto constrained = box;
+      standalone.checkBounds(constrained, {0, 0, 1024, kMinH}, limits, false, false, false, false);
+      expect(constrained == box, "the entire native viewport reaches the editor");
+      const auto canvas = design::fitCanvas(box.getWidth(), box.getHeight(), kMinH);
+      expect(canvas.scale <= design::kMaxScale);
+      expect(canvas.width >= design::kWidth && canvas.height >= kMinH);
+      expectWithinAbsoluteError(canvas.width * canvas.scale, static_cast<double>(box.getWidth()),
+                                2.0);
+      expectWithinAbsoluteError(canvas.height * canvas.scale, static_cast<double>(box.getHeight()),
+                                2.0);
+    }
+
     const auto fixtures = Fixtures::load(fixturesDir().getChildFile("scenarios.json"));
     const auto* mono = fixtures.find("main-mono");
     const auto* detail = fixtures.find("main-detail");
@@ -2864,6 +2882,45 @@ struct WindowFitTests : juce::UnitTest {
       return;
     }
     constexpr int kStretch = 160;
+
+    beginTest("standalone chrome and controls follow a wide canvas without resizing its viewport");
+    {
+      auto scenario = stretched(*mono, 0);
+      scenario.data.getDynamicObject()->setProperty("standalone", true);
+      scenario.data.getDynamicObject()->setProperty("windowWidth", 3840);
+      scenario.data.getDynamicObject()->setProperty("windowHeight", 2090);
+      MockBackend backend(scenario.data);
+      ScaledHost host(backend, scenario, fixtures.root);
+      pump(100);
+      auto& root = host.pluginRoot();
+      expectEquals(root.getWidth(), 1920);
+      expectEquals(root.getHeight(), 1045);
+      expectWithinAbsoluteError(root.services().zoom.factor(), 2.0, 1e-9);
+      auto* header = findView<PluginHeader>(root);
+      auto* plate = findView<Faceplate>(root);
+      auto* hints = findView<HintBar>(root);
+      expect(header != nullptr && plate != nullptr && hints != nullptr);
+      if (header == nullptr || plate == nullptr || hints == nullptr)
+        return;
+      expectEquals(header->getWidth(), root.getWidth());
+      expectEquals(header->getHeight(), design::kHeaderHeight);
+      expectEquals(plate->getWidth(), root.getWidth());
+      expectEquals(plate->getHeight(), design::kPlateHeight);
+      expectEquals(hints->getBottom(), root.getHeight());
+      const auto viewport = host.getBounds();
+      root.services().hints.setEnabled(false);
+      pump(50);
+      expect(host.getBounds() == viewport);
+      expectEquals(root.getWidth(), 1920);
+      expectEquals(root.getHeight(), 1045);
+      expectEquals(plate->getBottom(), root.getHeight());
+      root.services().hints.setEnabled(true);
+      pump(50);
+      expect(host.getBounds() == viewport);
+      expectEquals(hints->getBottom(), root.getHeight());
+      expectEquals(root.getWidth(), 1920);
+      expectWithinAbsoluteError(root.services().zoom.factor(), 2.0, 1e-9);
+    }
 
     beginTest("the root takes the stretch into its column; header, faceplate and hint bar hold");
     {

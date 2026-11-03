@@ -32574,6 +32574,33 @@
    "banner": false,
    "auth": false,
    "hasDrive": false
+  },
+  {
+   "id": "main-standalone-4k",
+   "extends": "main-mono",
+   "title": "Standalone 4k",
+   "description": "A standalone viewport fills its canvas while controls keep uniform zoom.",
+   "standalone": true,
+   "windowWidth": 3840,
+   "windowHeight": 2090
+  },
+  {
+   "id": "main-standalone-ultrawide",
+   "extends": "main-mono",
+   "title": "Standalone ultrawide",
+   "description": "A standalone viewport fills its canvas while controls keep uniform zoom.",
+   "standalone": true,
+   "windowWidth": 3440,
+   "windowHeight": 1440
+  },
+  {
+   "id": "main-standalone-portrait",
+   "extends": "main-mono",
+   "title": "Standalone portrait",
+   "description": "A standalone viewport fills its canvas while controls keep uniform zoom.",
+   "standalone": true,
+   "windowWidth": 1200,
+   "windowHeight": 1920
   }
  ]
 }

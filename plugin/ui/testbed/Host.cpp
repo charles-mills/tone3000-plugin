@@ -62,7 +62,8 @@ juce::Image placeholderImage(const juce::String& key) {
 juce::File fixturesDir() { return juce::File(T3K_TESTBED_FIXTURES); }
 
 ScaledHost::ScaledHost(Backend& backend, const Scenario& scenario, const juce::var& fixtures)
-    : zoom_(scenario.zoom()),
+    : standalone_(static_cast<bool>(scenario.data.getProperty("standalone", false))),
+      zoom_(scenario.zoom()),
       stretch_(scenario.stretch()),
       session(scenario.data, fixtures),
       services(backend, session, *this, prefs, /*updateNotice=*/true) {
@@ -82,6 +83,11 @@ ScaledHost::ScaledHost(Backend& backend, const Scenario& scenario, const juce::v
   addAndMakeVisible(*root);
   setVisible(true);  // offscreen captures have no window to make us visible
   setSize(juce::roundToInt(design::kWidth * zoom_), juce::roundToInt((minDesignHeight() + stretch_) * zoom_));
+  if (standalone_) {
+    const int w = static_cast<int>(scenario.data.getProperty("windowWidth", getWidth()));
+    const int h = static_cast<int>(scenario.data.getProperty("windowHeight", getHeight()));
+    setSize(w, h);
+  }
   resized();  // the root's chrome report already sized us; fit it now that it exists
 }
 
@@ -89,6 +95,10 @@ int ScaledHost::minDesignHeight() const { return design::kHeight + chrome_; }
 
 void ScaledHost::setExtraContentHeight(int total, int) {
   chrome_ = total;
+  if (standalone_ && root != nullptr) {
+    resized();
+    return;
+  }
   bounds_.setMinDesignHeight(minDesignHeight());
   // Grow by the strip, keeping scale and stretch (NativeEditor's desktop
   // path). Before the root exists its constructor is reporting; the
@@ -106,6 +116,14 @@ void ScaledHost::setExtraContentHeight(int total, int) {
 
 void ScaledHost::resized() {
   if (root == nullptr) return;
+  if (standalone_) {
+    const auto fit = design::fitCanvas(getWidth(), getHeight(), minDesignHeight());
+    root->setCanvasSize(fit.width, fit.height);
+    root->setTransform(juce::AffineTransform::scale(static_cast<float>(fit.scale)));
+    root->setTopLeftPosition(0, 0);
+    services.zoom.set(fit.scale);
+    return;
+  }
   const auto fit = design::fit(getWidth(), getHeight(), minDesignHeight());
   root->setStretch(fit.stretch);
   root->setTransform(juce::AffineTransform::scale(static_cast<float>(fit.scale)));

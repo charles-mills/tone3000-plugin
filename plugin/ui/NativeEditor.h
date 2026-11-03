@@ -1,20 +1,9 @@
-// The plugin's editor: owns the backend, the services and the PluginRoot,
-// and manages the window box: the 1024 x 578(+chrome) design box times a
-// user scale between 1x and kMaxScale, plus any height the user (or the
-// screen) adds beyond that, both persisted on the processor; grown by the
-// chrome strips' height on request.
-//
-// The root is laid out in design space and scaled with one AffineTransform
-// (core/WindowFit.h): the width picks the scale, a taller box stretches the
-// content column, and the root sits top-anchored and horizontally centred in
-// whatever box the host actually gives us, so a refused resize letterboxes
-// instead of squishing.
-//
-// Two window regimes. A hosted editor (every desktop format, the iOS AUv3)
-// is resizable within the design's range and asks the host for its size;
-// the iPad app's window is the screen (kiosk_): one fixed box, no corner
-// drags, no host to ask and no persisted size, the root simply fitted into
-// it.
+// The editor owns the backend, services and root, fitted with one uniform
+// transform. Hosted plugins keep the 1024-wide design and bounded stretch;
+// desktop standalone windows expand the canvas to their whole viewport,
+// with controls zoomed no higher than kMaxScale. Standalone normal dimensions
+// live in machine UI preferences rather than in presets. The iPad app keeps
+// its fixed-screen kiosk layout.
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -63,7 +52,9 @@ private:
 
   // The design box at the current chrome: the least the window shows whole.
   int minDesignHeight() const { return design::kHeight + extraContentHeight_; }
-  double currentScale() const { return getWidth() / static_cast<double>(design::kWidth); }
+  double currentScale() const {
+    return standalone_ ? services_.zoom.factor() : getWidth() / static_cast<double>(design::kWidth);
+  }
   design::Fit startFit() const;
   void applyScaledSize(double scale, int stretch);
   void fitRoot();
@@ -109,6 +100,7 @@ private:
   TONE3000Processor& processor_;
   // The window is the iPad's screen (the iOS Standalone); see the header.
   const bool kiosk_;
+  const bool standalone_;
   // Keep the UI's rasterised resources alive for as long as any editor
   // exists, and no longer: on Windows they are Direct2D/DirectWrite-backed
   // and must be gone before the host unloads the module (see KnobFaceCache
@@ -126,6 +118,8 @@ private:
   // constrainer, which can't express a minimum height that follows the
   // width). Its limits track the chrome and the current width.
   design::FitConstrainer bounds_;
+  design::StandaloneConstrainer standaloneBounds_;
+  juce::Point<int> normalSize_;
   // Guards resized() against persisting a size we didn't choose (see
   // parentHierarchyChanged).
   bool restoringSize_ = false;

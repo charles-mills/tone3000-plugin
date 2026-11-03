@@ -34,6 +34,7 @@ struct Fixtures {
   juce::var root;  // whole scenarios.json
   std::vector<Scenario> scenarios;
 
+  // Entries may extend an earlier scenario, overriding only named fields.
   static Fixtures load(const juce::File& scenariosJson);
   const Scenario* find(const juce::String& id) const;
 };

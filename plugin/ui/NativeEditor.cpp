@@ -12,6 +12,8 @@ namespace {
 // the editor's stages next to the "[Processor]" / "[Restore]" ones.
 void trace(const juce::String& message) { juce::Logger::writeToLog("[Editor] " + message); }
 
+constexpr const char* kStandaloneWindowSize = "t3k.standaloneWindowSize";
+
 juce::String formatScale(double scale) { return juce::String(scale, 2) + "x"; }
 
 // "Direct2D" / "Software Renderer" on Windows; the index is opaque without
@@ -89,6 +91,7 @@ NativeEditor::NativeEditor(TONE3000Processor& owner)
       trace_(owner),
       processor_(owner),
       kiosk_(design::kIos && owner.wrapperType == Wrapper::wrapperType_Standalone),
+      standalone_(!kiosk_ && owner.wrapperType == Wrapper::wrapperType_Standalone),
       backend_(owner, *this),
       prefs_(&prefsFile_->file, &prefsFile_->lock),
       session_(backend_, prefs_, http_, sessionConfig(owner.wrapperType)),
@@ -121,17 +124,44 @@ NativeEditor::NativeEditor(TONE3000Processor& owner)
     // the processor. Limits first: setConstrainer reads them to decide
     // whether the host may resize us at all.
     const auto start = startFit();
-    bounds_.setMinDesignHeight(minDesignHeight());
-    bounds_.updateLimitsFor(design::kWidth);
-    setConstrainer(&bounds_);
-    applyScaledSize(start.scale, start.stretch);
+    if (standalone_) {
+      setConstrainer(&standaloneBounds_);
+      auto size =
+          juce::Point<int>(juce::roundToInt(design::kWidth * start.scale),
+                           juce::roundToInt((minDesignHeight() + start.stretch) * start.scale));
+      const auto saved = prefs_.getJson(kStandaloneWindowSize);
+      if (const auto* dimensions = saved.getArray();
+          dimensions != nullptr && dimensions->size() == 2) {
+        const int w = static_cast<int>((*dimensions)[0]);
+        const int h = static_cast<int>((*dimensions)[1]);
+        if (w > 0 && h > 0)
+          size = {w, h};
+      }
+      if (const auto* display = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay()) {
+        const auto room = display->userBounds.toNearestInt();
+        size.x = juce::jlimit(1, juce::jmax(1, room.getWidth()), size.x);
+        size.y = juce::jlimit(1, juce::jmax(1, room.getHeight() - 40), size.y);
+      }
+      normalSize_ = size;
+      setSize(size.x, size.y);
+    } else {
+      bounds_.setMinDesignHeight(minDesignHeight());
+      bounds_.updateLimitsFor(design::kWidth);
+      setConstrainer(&bounds_);
+      applyScaledSize(start.scale, start.stretch);
+    }
   }
   // Separates a crash inside PluginRoot's construction (log stops at "Fonts
   // ready") from one in the host's window attach (stops here).
   trace("Constructed: " + juce::String(getWidth()) + "x" + juce::String(getHeight()));
 }
 
-NativeEditor::~NativeEditor() { stopTimer(); }
+NativeEditor::~NativeEditor() {
+  stopTimer();
+  if (standalone_ && normalSize_.x > 0 && normalSize_.y > 0)
+    prefs_.setJson(kStandaloneWindowSize,
+                   juce::var(juce::Array<juce::var>{normalSize_.x, normalSize_.y}));
+}
 
 design::Fit NativeEditor::startFit() const {
   // The persisted shape, cut down to the room the window may open into. In a
@@ -178,6 +208,12 @@ void NativeEditor::setExtraContentHeight(int total, int persistent) {
   // A taller box keeps the current scale until the (possibly async or
   // refused) host resize lands, or the grace period ends.
   shrinkAllowedAtMs_ = grew ? juce::Time::currentTimeMillis() + kShrinkGraceMs : 0;
+  if (standalone_) {
+    // Chrome consumes canvas space; it must not resize a maximized/tiled
+    // native window or change its restore bounds.
+    fitRoot();
+    return;
+  }
   if (kiosk_) {
     // The window is the screen; it cannot grow. The column gives up the
     // strip's height from its stretch, or the box shrinks to fit.
@@ -196,6 +232,15 @@ void NativeEditor::setExtraContentHeight(int total, int persistent) {
 }
 
 void NativeEditor::fitRoot() {
+  if (standalone_) {
+    stopTimer();
+    const auto fit = design::fitCanvas(getWidth(), getHeight(), minDesignHeight());
+    root_.setCanvasSize(fit.width, fit.height);
+    root_.setTransform(juce::AffineTransform::scale(static_cast<float>(fit.scale)));
+    root_.setTopLeftPosition(0, 0);
+    services_.zoom.set(fit.scale);
+    return;
+  }
   auto fit = design::fit(getWidth(), getHeight(), minDesignHeight());
   if (fit.scale < currentScale() - 1e-6) {
     // The box is taller than the window allows. Hold the width-driven scale
@@ -241,6 +286,14 @@ void NativeEditor::resized() {
           juce::String(extraContentHeight_) + ")");
   }
   fitRoot();
+  if (standalone_) {
+    if (!restoringSize_) {
+      if (const auto* window = findParentComponentOfClass<juce::DocumentWindow>();
+          window != nullptr && window->isShowing() && !window->isFullScreen())
+        normalSize_ = {getWidth(), getHeight()};
+    }
+    return;
+  }
   if (kiosk_) return;  // no chosen shape: the window is the screen
   // The height range hosts read follows the width we now have.
   bounds_.updateLimitsFor(getWidth());

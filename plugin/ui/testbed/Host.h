@@ -28,7 +28,10 @@ public:
   PluginRoot& pluginRoot() { return *root; }
   // The resize policy for a window around us (TestbedWindow), tracking the
   // chrome as NativeEditor's does.
-  design::FitConstrainer& constrainer() { return bounds_; }
+  juce::ComponentBoundsConstrainer& constrainer() {
+    return standalone_ ? static_cast<juce::ComponentBoundsConstrainer&>(standaloneBounds_)
+                       : bounds_;
+  }
 
   void setExtraContentHeight(int total, int) override;
   void resized() override;
@@ -38,10 +41,12 @@ private:
   // The design box at the current chrome: the least the window shows whole.
   int minDesignHeight() const;
 
+  const bool standalone_;
   const double zoom_;
   const int stretch_;  // the scenario's; the window's own once the user drags it
   int chrome_ = 0;     // the root's strips, reported through setExtraContentHeight
   design::FitConstrainer bounds_;
+  design::StandaloneConstrainer standaloneBounds_;
   // As in NativeEditor: pin the shared typefaces and knob layers for the
   // host's lifetime so paints reuse them instead of rebuilding per call.
   Fonts::Hold fontsHold_;

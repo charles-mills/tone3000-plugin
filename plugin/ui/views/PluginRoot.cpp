@@ -207,10 +207,18 @@ void PluginRoot::setStretch(int px) {
   applyDesignSize();
 }
 
+void PluginRoot::setCanvasSize(int width, int height) {
+  const int chrome = (hintsVisible_ ? design::kHintHeight : 0) +
+                     (bannerPhase_ != BannerPhase::hidden ? AppBanner::kHeight : 0);
+  canvasWidth_ = juce::jmax(design::kWidth, width);
+  stretch_ = juce::jmax(0, height - design::kHeight - chrome);
+  applyDesignSize();
+}
+
 void PluginRoot::applyDesignSize() {
   const int hintExtra = hintsVisible_ ? design::kHintHeight : 0;
   const int bannerExtra = bannerPhase_ != BannerPhase::hidden ? AppBanner::kHeight : 0;
-  setSize(design::kWidth, design::kHeight + stretch_ + bannerExtra + hintExtra);
+  setSize(canvasWidth_, design::kHeight + stretch_ + bannerExtra + hintExtra);
 }
 
 // Banner choreography
@@ -469,10 +477,10 @@ void PluginRoot::resized() {
   // plus the stretch); while the window has the strip's space but the
   // banner isn't shown yet, the gap at the bottom is black on black.
   const int slotH = bannerPhase_ == BannerPhase::shown ? AppBanner::kHeight : 0;
-  banner_.setBounds(0, 0, design::kWidth, AppBanner::kHeight);
+  banner_.setBounds(0, 0, getWidth(), AppBanner::kHeight);
   const int hintH = hintsVisible_ ? design::kHintHeight : 0;
   const int coreH = design::kHeight + stretch_;
-  auto column = juce::Rectangle<int>(0, slotH, design::kWidth, coreH + hintH);
+  auto column = juce::Rectangle<int>(0, slotH, getWidth(), coreH + hintH);
   if (hintsVisible_) hintBar_.setBounds(column.removeFromBottom(hintH));
   header_.setBounds(column.removeFromTop(PluginHeader::kHeight));
   if (browser_) browser_->setBounds(column);  // the rest, faceplate included

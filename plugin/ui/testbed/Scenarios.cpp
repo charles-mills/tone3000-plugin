@@ -19,7 +19,17 @@ Fixtures Fixtures::load(const juce::File& scenariosJson) {
       Scenario s;
       s.id = entry["id"].toString();
       s.data = entry;
-      s.hasDrive = static_cast<bool>(entry.getProperty("hasDrive", false));
+      const auto baseId = entry["extends"].toString();
+      if (baseId.isNotEmpty()) {
+        const auto* base = f.find(baseId);
+        jassert(base != nullptr);  // bases precede their variants in the table
+        if (base == nullptr)
+          continue;
+        s.data = base->data.clone();
+        for (const auto& [key, value] : entry.getDynamicObject()->getProperties())
+          s.data.getDynamicObject()->setProperty(key, value);
+      }
+      s.hasDrive = static_cast<bool>(s.data.getProperty("hasDrive", false));
       f.scenarios.push_back(std::move(s));
     }
   }

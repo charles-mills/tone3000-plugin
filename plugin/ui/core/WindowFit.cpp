@@ -28,6 +28,20 @@ Fit fit(int boxWidth, int boxHeight, int minDesignHeight) {
   return {scale, std::clamp(rows - minDesignHeight, 0, kMaxStretch)};
 }
 
+CanvasFit fitCanvas(int boxWidth, int boxHeight, int minDesignHeight) {
+  const double scale =
+      std::max(kMinScale, std::min({kMaxScale, boxWidth / static_cast<double>(kWidth),
+                                    boxHeight / static_cast<double>(minDesignHeight)}));
+  return {scale, std::max(kWidth, static_cast<int>(std::floor(boxWidth / scale))),
+          std::max(minDesignHeight, static_cast<int>(std::floor(boxHeight / scale)))};
+}
+
+StandaloneConstrainer::StandaloneConstrainer() {
+  // Allow small displays without letting a drag make the controls unusable.
+  // Finite maxima also keep scaled X11 size hints well below integer overflow.
+  setSizeLimits(kWidth / 2, kHeight / 2, 100000, 100000);
+}
+
 void FitConstrainer::setMinDesignHeight(int designHeight) { minDesignHeight_ = designHeight; }
 
 int FitConstrainer::minHeightFor(int width) const {

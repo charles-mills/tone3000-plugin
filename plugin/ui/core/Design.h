@@ -32,7 +32,8 @@ inline constexpr int kPlateHeight = 108;   // Faceplate.tsx
 // chain gallery's and block detail's room before any stretch).
 inline constexpr int kColumnHeight = kHeight - kHeaderHeight - kPlateHeight;
 
-// Editor window scale range: the width picks the scale, 1x to 2x.
+// Hosted editor scale range; standalone uses this as a control zoom cap,
+// expanding its canvas rather than limiting the native window.
 inline constexpr double kMaxScale = 2.0;
 // How far the column may stretch beyond kHeight (design px, at any scale):
 // one core height covers every landscape screen (an iPad's 4:3 asks for
